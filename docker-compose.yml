@@ -1,0 +1,228 @@
+services:
+  common_service_template: &common_service
+    build: .
+    environment:
+      DATABASE_URL: postgres://user:password@db:5432/contacts_db
+    networks:
+      - backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      # java_spring needs ~20s to boot; a passing probe still flips to healthy immediately.
+      start_period: 60s
+
+  common_benchmark_tests_template: &common_benchmark_tests
+    build: ./benchmark_tests
+    networks:
+      - backend
+
+  common_benchmark_template: &common_benchmark
+    build: ./benchmark_client
+    networks:
+      - backend
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: contacts_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgresql:/docker-entrypoint-initdb.d
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  python_aiohttp:
+    <<: *common_service
+    build: ./python_aiohttp
+
+  benchmark_tests_python:
+    <<: *common_benchmark_tests
+    depends_on:
+      python_aiohttp:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://python_aiohttp:8080
+
+  benchmark_python:
+    <<: *common_benchmark
+    depends_on:
+      python_aiohttp:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://python_aiohttp:8080
+
+  go_fiber:
+    <<: *common_service
+    build: ./go_fiber
+
+  benchmark_tests_go:
+    <<: *common_benchmark_tests
+    depends_on:
+      go_fiber:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://go_fiber:8080
+
+  benchmark_go:
+    <<: *common_benchmark
+    depends_on:
+      go_fiber:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://go_fiber:8080
+
+  php_slim:
+    <<: *common_service
+    build: ./php_slim
+
+  benchmark_tests_php:
+    <<: *common_benchmark_tests
+    depends_on:
+      php_slim:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://php_slim:8080
+
+  benchmark_php:
+    <<: *common_benchmark
+    depends_on:
+      php_slim:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://php_slim:8080
+
+  java_spring:
+    <<: *common_service
+    build: ./java_spring
+    # Tomcat rejects Host headers containing an underscore (RFC 7230), so clients
+    # reach this service through a hyphenated network alias instead.
+    networks:
+      backend:
+        aliases:
+          - java-spring
+
+  benchmark_tests_java:
+    <<: *common_benchmark_tests
+    depends_on:
+      java_spring:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://java-spring:8080
+
+  benchmark_java:
+    <<: *common_benchmark
+    depends_on:
+      java_spring:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://java-spring:8080
+
+  rust_axum:
+    <<: *common_service
+    build: ./rust_axum
+
+  benchmark_tests_rust:
+    <<: *common_benchmark_tests
+    depends_on:
+      rust_axum:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://rust_axum:8080
+
+  benchmark_rust:
+    <<: *common_benchmark
+    depends_on:
+      rust_axum:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://rust_axum:8080
+
+  node_express:
+    <<: *common_service
+    build: ./node_express
+
+  benchmark_tests_node_express:
+    <<: *common_benchmark_tests
+    depends_on:
+      node_express:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://node_express:8080
+
+  benchmark_node_express:
+    <<: *common_benchmark
+    depends_on:
+      node_express:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://node_express:8080
+
+  c_microhttpd:
+    <<: *common_service
+    build: ./c_microhttpd
+
+  benchmark_tests_c:
+    <<: *common_benchmark_tests
+    depends_on:
+      c_microhttpd:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://c_microhttpd:8080
+
+  benchmark_c:
+    <<: *common_benchmark
+    depends_on:
+      c_microhttpd:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://c_microhttpd:8080
+
+  cpp_drogon:
+    <<: *common_service
+    build: ./cpp_drogon
+
+  benchmark_tests_cpp:
+    <<: *common_benchmark_tests
+    depends_on:
+      cpp_drogon:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://cpp_drogon:8080
+
+  benchmark_cpp:
+    <<: *common_benchmark
+    depends_on:
+      cpp_drogon:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://cpp_drogon:8080
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  pgdata:
